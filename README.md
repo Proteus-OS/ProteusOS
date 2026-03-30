@@ -13,7 +13,7 @@ Las imágenes ISO oficiales se encuentran en la sección de [Releases](https://g
 
 ## 🔑 Credenciales por Defecto
 * **Usuario:** `proteus`
-* **Contraseña:** `proteus2026` 
+* **Contraseña:** `proteus` 
 *(Se recomienda cambiar la contraseña inmediatamente tras el primer inicio).*
 
 ## 🛠️ Stack Tecnológico Incluido
