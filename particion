@@ -1,0 +1,57 @@
+# 🗄️ Guía de Particionado Recomendado para ProteusOS
+
+Un Centro de Operaciones de Seguridad (SOC) genera y procesa cantidades masivas de datos por segundo. Usar una única partición raíz (`/`) para todo el sistema es una mala práctica que puede resultar en la caída de los servicios si los logs llenan el disco.
+
+Para garantizar el rendimiento de **Wazuh Indexer**, **Suricata** y los contenedores de **Docker**, recomendamos encarecidamente utilizar **LVM (Logical Volume Manager)** durante la instalación manual y separar los puntos de montaje críticos.
+
+---
+
+## 📐 Estrategias por Perfil de Instalación
+
+A continuación, se detallan los esquemas de particionado sugeridos según el hardware y el perfil elegido en el TUI.
+
+### 🟢 Perfil LITE (Disco Mínimo: 250 GB)
+*Enfoque: Protección de endpoints. Todo el almacenamiento se destina a la retención de eventos de Wazuh.*
+
+| Punto de Montaje | Tamaño Sugerido | Sistema de Archivos | Propósito |
+| :--- | :--- | :--- | :--- |
+| `/boot/efi` | 512 MB | FAT32 | Arranque UEFI (Obligatorio). |
+| `swap` | 8 GB | Swap | Soporte para picos de RAM en Java. |
+| `/` (Root) | 40 GB | ext4 o xfs | Sistema base Debian, XFCE y binarios. |
+| `/var/log` | 20 GB | ext4 o xfs | Logs locales del sistema y de Suricata. |
+| `/var/lib/wazuh-indexer` | **150 GB+** | xfs (Recomendado) | **Crítico:** Base de datos de eventos y alertas. |
+| `/home` | Restante | ext4 | Reportes generados y configuraciones de usuario. |
+
+### 🟡 Perfil STANDARD (Disco Mínimo: 500 GB)
+*Enfoque: Inspección de red y automatización. Se requiere espacio adicional para los contenedores de Shuffle (SOAR).*
+
+| Punto de Montaje | Tamaño Sugerido | Sistema de Archivos | Propósito |
+| :--- | :--- | :--- | :--- |
+| `/boot/efi` | 512 MB | FAT32 | Arranque UEFI. |
+| `swap` | 16 GB | Swap | Soporte extendido de memoria. |
+| `/` (Root) | 50 GB | ext4 o xfs | Sistema base y herramientas. |
+| `/var/log` | 40 GB | ext4 o xfs | Volumen alto de logs de red (Suricata). |
+| `/var/lib/docker` | **100 GB** | ext4 o btrfs | Imágenes y volúmenes de Shuffle / OpenSearch. |
+| `/var/lib/wazuh-indexer` | **250 GB+** | xfs | Base de datos principal de Wazuh. |
+| `/home` | Restante | ext4 | Archivos de usuario y respaldos temporales. |
+
+### 🔴 Perfil FULL (Disco Mínimo: 1 TB SSD/NVMe)
+*Enfoque: Análisis forense total. Múltiples bases de datos corriendo en paralelo (TheHive, Cortex, Wazuh, Zeek).*
+
+| Punto de Montaje | Tamaño Sugerido | Sistema de Archivos | Propósito |
+| :--- | :--- | :--- | :--- |
+| `/boot/efi` | 1 GB | FAT32 | Arranque UEFI. |
+| `swap` | 16 GB | Swap | (No superar los 16GB para no asfixiar el heap de Java). |
+| `/` (Root) | 80 GB | ext4 o xfs | Sistema base. |
+| `/var/log` | 80 GB | ext4 o xfs | Logs masivos (Zeek + Suricata + Sistema). |
+| `/var/lib/docker` | **200 GB** | ext4 o btrfs | Infraestructura completa de TheHive, Cortex y Shuffle. |
+| `/var/lib/wazuh-indexer` | **500 GB+** | xfs | Retención a largo plazo de telemetría y endpoints. |
+| `/home` | Restante | ext4 | PCAPs, evidencias forenses y exportaciones. |
+
+---
+
+## ⚙️ Notas Técnicas y Mejores Prácticas
+
+1. **XFS para Bases de Datos:** Recomendamos usar el sistema de archivos `xfs` para `/var/lib/wazuh-indexer`. Maneja mucho mejor la escritura intensiva y concurrente que requiere OpenSearch/Elasticsearch.
+2. **Uso de LVM:** Al usar LVM, no asignes el 100% del disco inicialmente. Deja un 10-15% sin asignar (*Free Space*). Esto te permitirá extender particiones en caliente (ej. `lvextend`) si un directorio como `/var/log` se llena inesperadamente.
+3. **Puntos de Montaje Seguros (Hardening):** Para entornos de producción estrictos, considera montar `/tmp`, `/var/tmp` y `/dev/shm` con las banderas `noexec`, `nosuid` y `nodev` editando el archivo `/etc/fstab` post-instalación.
